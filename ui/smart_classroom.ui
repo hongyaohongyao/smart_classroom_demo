@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>824</height>
+   </rect>
+  </property>
+  <property name="font">
+   <font>
+    <family>华文琥珀</family>
+    <pointsize>10</pointsize>
+    <weight>50</weight>
+    <italic>false</italic>
+    <bold>false</bold>
+   </font>
+  </property>
+  <property name="windowTitle">
+   <string>智慧教室</string>
+  </property>
+  <property name="windowIcon">
+   <iconset theme="window_icon">
+    <normaloff>C:/Users/12071/.designer/backup</normaloff>C:/Users/12071/.designer/backup</iconset>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">font: 10pt &quot;华文琥珀&quot;;
+QPushButton
+                     {text-align : center;
+                     background-color : white;
+                     font: bold;
+                     border-color: ;
+	color: rgb(255, 255, 255);
+                     border-width: 5px;
+                     border-radius: 10px;
+                     padding: 6px;
+                     height : 14px;
+                     border-style: outset;
+                     font : 14px;}
+                     QPushButton:pressed
+                     {text-align : center;
+                     background-color : light gray;
+                     font: bold;
+                     border-color: gray;
+                     border-width: 2px;
+                     border-radius: 10px;
+                     padding: 6px;
+                     height : 14px;
+                     border-style: outset;
+                     font : 14px;}
+</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="styleSheet">
+    <string notr="true"/>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout_7">
+    <property name="leftMargin">
+     <number>5</number>
+    </property>
+    <property name="topMargin">
+     <number>5</number>
+    </property>
+    <property name="rightMargin">
+     <number>5</number>
+    </property>
+    <property name="bottomMargin">
+     <number>5</number>
+    </property>
+    <item>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>-1</number>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1280</width>
+     <height>24</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menu">
+    <property name="title">
+     <string>主要功能</string>
+    </property>
+    <addaction name="action_cheating_detection"/>
+    <addaction name="separator"/>
+    <addaction name="action_class_focus"/>
+   </widget>
+   <widget class="QMenu" name="menu_2">
+    <property name="title">
+     <string>设置</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menu_3">
+    <property name="title">
+     <string>帮助</string>
+    </property>
+    <addaction name="about_us"/>
+   </widget>
+   <addaction name="menu"/>
+   <addaction name="menu_2"/>
+   <addaction name="menu_3"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="action_cheating_detection">
+   <property name="text">
+    <string>作弊检测</string>
+   </property>
+  </action>
+  <action name="action_class_focus">
+   <property name="text">
+    <string>课堂专注度分析</string>
+   </property>
+  </action>
+  <action name="about_us">
+   <property name="text">
+    <string>关于我们</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,12 @@
+<RCC>
+  <qresource prefix="videos">
+    <file>scan.ico</file>
+    <file>webcam.ico</file>
+    <file>web-camera.ico</file>
+    <file>multimedia.ico</file>
+  </qresource>
+  <qresource prefix="func">
+    <file>edit.ico</file>
+    <file>refresh.ico</file>
+  </qresource>
+</RCC>
