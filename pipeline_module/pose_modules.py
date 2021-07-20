@@ -5,7 +5,7 @@ from pipeline_module.core.base_module import BaseModule, TASK_DATA_OK
 class AlphaPoseModule(BaseModule):
 
     def __init__(self, weights, device, skippable=True,
-                 face_aligner_weights='weights/mobilenet56_se_external_model_best.torchscript.pth'):
+                 face_aligner_weights=None):
         super(AlphaPoseModule, self).__init__(skippable=skippable)
         self.weights = weights
         self.pose_estimator = AlphaPoseEstimator(weights, device, face_aligner_weights=face_aligner_weights)

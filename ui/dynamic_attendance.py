@@ -267,7 +267,7 @@ class Ui_DynamicAttendance(object):
         self.verticalLayout_4.addLayout(self.verticalLayout_3)
         self.horizontalLayout_5.addLayout(self.verticalLayout_4)
         self.horizontalLayout_5.setStretch(0, 7)
-        self.horizontalLayout_5.setStretch(2, 2)
+        self.horizontalLayout_5.setStretch(2, 4)
         self.verticalLayout_8.addLayout(self.horizontalLayout_5)
 
         self.retranslateUi(DynamicAttendance)

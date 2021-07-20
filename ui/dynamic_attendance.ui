@@ -60,7 +60,7 @@
     </layout>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="7,0,2">
+    <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="7,0,4">
      <item>
       <layout class="QVBoxLayout" name="verticalLayout_6">
        <item>

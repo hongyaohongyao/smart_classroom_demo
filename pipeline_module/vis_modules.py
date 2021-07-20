@@ -9,6 +9,7 @@ import torch
 from PIL import ImageFont, Image, ImageDraw
 from PyQt5.QtGui import QPixmap, QImage
 
+from models.concentration_evaluator import ConcentrationEvaluation, ConcentrationEvaluator
 from pipeline_module.core.base_module import BaseModule, TASK_DATA_OK, DictData
 from utils.vis import draw_keypoints136
 
@@ -161,9 +162,9 @@ class DataDealerModule(BaseModule):
         current_time = time.time()
         interval = (current_time - self.last_time)
         fps = 1 / interval
+        data.fps = fps
         self.draw_frame(data, fps=fps)
         data.interval = interval
-        data.fps = fps
         self.last_time = current_time  # 更新时间
         self.push_frame_func(data)
         if hasattr(data, 'source_fps'):
@@ -208,6 +209,7 @@ class CheatingDetectionVisModule(DataDealerModule):
     def deal_skipped_data(self, data: DictData, last_data: DictData) -> DictData:
         frame = data.frame
         data = last_data
+        data.skipped = None
         data.frame = frame
         data.detections = data.detections.clone()
         # 添加抖动
@@ -216,6 +218,99 @@ class CheatingDetectionVisModule(DataDealerModule):
 
     def draw_frame(self, data, fps):
         draw_frame(data, fps=fps)
+
+
+class ClassConcentrationVisModule(DataDealerModule):
+
+    def __init__(self, push_frame_func, interval=0.06, skippable=False):
+        super(ClassConcentrationVisModule, self).__init__(push_frame_func, interval, skippable)
+
+    def deal_skipped_data(self, data: DictData, last_data: DictData) -> DictData:
+        frame = data.frame
+        data = last_data
+        data.skipped = None
+        data.frame = frame
+        data.detections = data.detections.clone()
+        # 添加抖动
+        data.detections[:, :4] += torch.rand_like(data.detections[:, :4]) * 3
+        return data
+
+    def draw_frame(self, data, fps):
+        def opt_draw_frame(show_box=True, self_weights=None,
+                           draw_keypoints=False, show_fps=True,
+                           data=data,
+                           self=self):
+            frame = data.frame.copy()
+            pred = data.detections
+            preds_kps = data.keypoints
+            preds_scores = data.keypoints_scores
+            if show_box and pred.shape[0] > 0:
+                # 绘制骨骼关键点
+                if draw_keypoints and preds_kps is not None:
+                    draw_keypoints136(frame, preds_kps, preds_scores)
+                ce: ConcentrationEvaluation = data.concentration_evaluation
+                # 绘制目标检测框和动作分类
+                frame_pil = Image.fromarray(frame)
+                draw = ImageDraw.Draw(frame_pil)
+                #
+                primary_levels = ce.primary_levels
+                if self_weights is not None:
+                    primary_levels = ce.secondary_levels @ ConcentrationEvaluator.softmax(np.array(self_weights))
+                for det, primary_level, secondary_level in zip(pred,
+                                                               primary_levels,
+                                                               ce.secondary_levels):
+                    det = det.to(torch.int)
+                    action_color_channel = int(secondary_level[0] * 44)
+                    face_color_channel = int(secondary_level[1] * 44)
+                    head_pose_color_channel = int(secondary_level[2] * 44)
+                    draw.rectangle((det[0], det[1], det[2], det[3]),
+                                   outline=(action_color_channel,
+                                            face_color_channel,
+                                            head_pose_color_channel),
+                                   width=2)
+                    h = int((det[3] - det[1]) * 0.2)
+                    w = int((det[2] - det[0]) / 3)
+                    draw.rectangle((det[0], det[1] - h, det[0] + w, det[1]),
+                                   fill=(action_color_channel, 0, 0),
+                                   width=2)
+
+                    draw.rectangle((det[0] + w, det[1] - h, det[0] + 2 * w, det[1]),
+                                   fill=(0, face_color_channel, 0),
+                                   width=2)
+
+                    draw.rectangle((det[0] + 2 * w, det[1] - h, det[0] + 3 * w, det[1]),
+                                   fill=(0, 0, head_pose_color_channel),
+                                   width=2)
+
+                    # 文字
+                    fontText = ImageFont.truetype("resource/font/NotoSansCJKkr-Black.otf",
+                                                  int(40 * (min(det[2] - det[0], det[3] - det[1])) / 200),
+                                                  encoding="utf-8")
+
+                    show_text = f'{primary_level:8.2f}'
+                    f_w, f_h = fontText.getsize(show_text)
+                    draw.text(((det[2] + det[0] - f_w) // 2, det[1] - f_h),
+                              show_text,
+                              (255, 255, 255),
+                              fontText)
+
+                frame = np.asarray(frame_pil)
+                # 头部姿态估计轴
+                for (r, t) in data.head_pose:
+                    data.draw_axis(frame, r, t)
+
+            # 绘制fps
+            if show_fps:
+                cv2.putText(frame,
+                            "FPS: %.2f" % data.fps,
+                            (0, 52),
+                            cv2.FONT_HERSHEY_COMPLEX,
+                            0.5,
+                            (0, 0, 255))
+            return frame  # 保存绘制过的图像
+
+        data.get_draw_frame = lambda show_box=True, self_weights=None: opt_draw_frame(show_box=show_box,
+                                                                                      self_weights=self_weights)
 
 
 class DynamicAttendanceVisModule(DataDealerModule):

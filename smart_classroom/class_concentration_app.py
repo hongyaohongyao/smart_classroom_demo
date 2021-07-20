@@ -8,46 +8,47 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from PyQt5 import QtCore
+from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtWidgets import QWidget
 from matplotlib import ticker
 
+from models.concentration_evaluator import ConcentrationEvaluation
 from pipeline_module.core.base_module import DictData
+from ui.class_concentration import Ui_ClassConcentration
 
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
 plt.rcParams['axes.unicode_minus'] = False  # 这两行需要手动设置
 
-from pipeline_module.classroom_action_module import CheatingActionModule
+from pipeline_module.classroom_action_module import ConcentrationEvaluationModule
 from pipeline_module.core.task_solution import TaskSolution
 from pipeline_module.pose_modules import AlphaPoseModule
 from pipeline_module.video_modules import VideoModule
-from pipeline_module.vis_modules import CheatingDetectionVisModule
+from pipeline_module.vis_modules import ClassConcentrationVisModule
 from pipeline_module.yolo_modules import YoloV5Module
-from smart_classroom.list_items import VideoSourceItem, RealTimeCatchItem, FrameData
-from ui.cheating_detection import Ui_CheatingDetection
+from smart_classroom.list_items import VideoSourceItem
 from utils.common import second2str, OffsetList
 
 yolov5_weight = './weights/yolov5s.torchscript.pt'
 alphapose_weight = './weights/halpe136_mobile.torchscript.pth'
-classroom_action_weight = './weights/classroom_action_lr_front_v2_sm.torchscript.pth'
+classroom_action_weight = './weights/classroom_action_lr_front_v2.torchscript.pth'
+face_aligner_weights = 'weights/mobilenet56_se_external_model_best.torchscript.pth'
 device = 'cuda'
 
 
-class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
-    add_cheating_list_signal = QtCore.pyqtSignal(DictData)
+class ClassConcentrationApp(QWidget, Ui_ClassConcentration):
     push_frame_signal = QtCore.pyqtSignal(DictData)
+    draw_img_on_window_signal = QtCore.pyqtSignal(np.ndarray, QWidget)
 
     def __init__(self, parent=None):
-        super(CheatingDetectionApp, self).__init__(parent)
+        super(ClassConcentrationApp, self).__init__(parent)
         self.setupUi(self)
         self.video_source = 0
         self.frame_data_list = OffsetList()
         self.opened_source = None
         self.playing = None
         self.playing_real_time = False
-        self.num_of_passing = 0
-        self.num_of_peep = 0
-        self.num_of_gazing_around = 0
+        self.pushed_frame = False
 
         # 视频事件
         # 设置视频源事件
@@ -63,27 +64,20 @@ class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
         self.video_process_bar.valueChanged.connect(self.change_frame)
         self.push_frame_signal.connect(self.push_frame)
 
-        # 其他事件
-        def local_to_cheater(x):
-            self.stop_playing()
-            self.video_process_bar.setValue(x.frame_num)
-
-        self.cheating_list.itemClicked.connect(local_to_cheater)
-        self.real_time_catch_list.itemClicked.connect(local_to_cheater)
-        self.cheating_type_combo.currentIndexChanged.connect(self.cheating_list_filter)
-
         # 设置列表
-        self.add_cheating_list_signal.connect(self.add_cheating_list)
+        self.draw_img_on_window_signal.connect(self.draw_img_on_window2)
         # 初始化视频源
         self.init_video_source()
 
-        # 作弊行为曲线参数
-        self.cheating_list_time = []
-        self.cheating_list_count_data = dict(
-            传纸条=[],
-            低头偷看=[],
-            东张西望=[]
-        )
+        # 图像坐标数据
+        self.x_time_data = []
+        self.y_action_data = []
+        self.y_face_data = []
+        self.y_head_pose_data = []
+        self.y_primary_level_data = []
+        self.draw_img_timer = QTimer(self)
+        self.draw_img_timer.timeout.connect(self.refresh_img_on_window)
+
         # 初始化界面剩余部分
         self.init_rest_window()
 
@@ -95,7 +89,7 @@ class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
         # 添加视频通道
         VideoSourceItem(self.video_resource_list, "摄像头", 0).add_item()
         # 添加本地视频文件
-        local_source = 'resource/videos/cheating_detection'
+        local_source = 'resource/videos/class_concentration'
         videos = [*filter(lambda x: x.endswith('.mp4'), os.listdir(local_source))]
         for video_name in videos:
             VideoSourceItem(self.video_resource_file_list,
@@ -108,23 +102,6 @@ class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
             for row in islice(reader, 1, None):
                 VideoSourceItem(self.video_resource_list, row[0], row[1],
                                 ico_src=':/videos/webcam.ico').add_item()
-
-    def cheating_list_filter(self, idx):
-        if idx == 0:
-            for i in range(self.cheating_list.count()):
-                self.cheating_list.item(i).setHidden(False)
-        elif idx == 1:
-            for i in range(self.cheating_list.count()):
-                item = self.cheating_list.item(i)
-                item.setHidden(item.data_.num_of_passing == 0)
-        elif idx == 2:
-            for i in range(self.cheating_list.count()):
-                item = self.cheating_list.item(i)
-                item.setHidden(item.data_.num_of_peep == 0)
-        elif idx == 3:
-            for i in range(self.cheating_list.count()):
-                item = self.cheating_list.item(i)
-                item.setHidden(item.data_.num_of_gazing_around == 0)
 
     def open_source(self, source):
         self.open_source_lock.acquire(blocking=True)
@@ -153,8 +130,8 @@ class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
                 .set_source_module(VideoModule(source, fps=fps)) \
                 .set_next_module(YoloV5Module(yolov5_weight, device)) \
                 .set_next_module(AlphaPoseModule(alphapose_weight, device)) \
-                .set_next_module(CheatingActionModule(classroom_action_weight)) \
-                .set_next_module(CheatingDetectionVisModule(lambda d: self.push_frame_signal.emit(d)))
+                .set_next_module(ConcentrationEvaluationModule(classroom_action_weight)) \
+                .set_next_module(ClassConcentrationVisModule(lambda d: self.push_frame_signal.emit(d)))
             self.opened_source.start()
             self.playing_real_time = True
             self.open_source_lock.release()
@@ -169,8 +146,12 @@ class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
             self.frame_data_list.clear()
             self.video_process_bar.setMaximum(-1)
             self.playing_real_time = False
-            self.cheating_list.clear()
-            self.real_time_catch_list.clear()
+            for l in [self.x_time_data,
+                      self.y_action_data,
+                      self.y_face_data,
+                      self.y_head_pose_data,
+                      self.y_primary_level_data]:
+                l.clear()
 
     def push_frame(self, data):
         try:
@@ -183,31 +164,16 @@ class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
                 self.frame_data_list.pop()
             self.video_process_bar.setMinimum(self.frame_data_list.min_index())
             self.video_process_bar.setMaximum(self.frame_data_list.max_index())
-
-            # 添加到作弊列表
             data.frame_num = max_index + 1
-            if data.num_of_cheating > 0 and self.check_cheating_change(data):
-                self.add_cheating_list_signal.emit(data)
+            # 显示图片
+            if not hasattr(data, 'skipped'):
+                self.add_data_to_list(data)
 
             # 判断是否进入实时播放状态
             if self.playing_real_time:
                 self.video_process_bar.setValue(self.video_process_bar.maximum())
-
-            if not hasattr(data, 'skipped'):
-                # 更新作弊发生曲线
-                Thread(target=self.draw_cheating_list_line, args=[data]).start()
         except Exception as e:
-            print(e)
-
-    def check_cheating_change(self, data):
-        cond = all([self.num_of_passing >= data.num_of_passing,
-                    self.num_of_peep >= data.num_of_peep,
-                    self.num_of_gazing_around >= data.num_of_gazing_around])
-        self.num_of_passing = data.num_of_passing
-        self.num_of_peep = data.num_of_peep
-        self.num_of_gazing_around = data.num_of_gazing_around
-
-        return not cond
+            print('push_frame', e)
 
     def playing_video(self):
         try:
@@ -231,34 +197,90 @@ class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
         if self.playing is not None:
             self.playing = None
 
-    def add_cheating_list(self, data):
+    def add_data_to_list(self, data):
+        """
+        将数据绘制到界面图像得到位置
+        """
         try:
-            # 添加作弊发生列表
-            FrameData(self.cheating_list, data).add_item()
-            # 作弊列表数量限制
-            while self.cheating_list.count() > self.cheating_list_spin.value():
-                self.cheating_list.takeItem(0)
-            # 添加实时抓拍
-            frame = data.frame
-            detections = data.detections
-            cheating_types = data.pred_class_names
-            time_process = data.time_process
-            frame_num = data.frame_num
-            best_preds = data.best_preds
-            for detection, cheating_type, best_pred in zip(detections, cheating_types, best_preds):
-                if best_pred == 0:
-                    continue
-                detection = detection[:4].clone()
-                detection[2:] = detection[2:] - detection[:2]
-                RealTimeCatchItem(self.real_time_catch_list, frame, detection, time_process, cheating_type,
-                                  frame_num).add_item()
-            # 实时抓拍列表限制
-            real_time_catch_list_count = self.real_time_catch_list.count()
-            while real_time_catch_list_count > self.real_time_catch_spin.value():
-                self.real_time_catch_list.takeItem(real_time_catch_list_count - 1)
-                real_time_catch_list_count -= 1
+            time_process = second2str(data.time_process)
+            max_idx = len(self.x_time_data) - 1
+            if max_idx >= 0 and time_process == self.x_time_data[max_idx]:
+                return
+                # 更新数据
+            self.x_time_data.append(time_process)
+
+            concentration_evaluation: ConcentrationEvaluation = data.concentration_evaluation
+            secondary_mean_levels = np.mean(concentration_evaluation.secondary_levels, axis=0)
+
+            self.y_action_data.append(secondary_mean_levels[0])
+            self.y_face_data.append(secondary_mean_levels[1])
+            self.y_head_pose_data.append(secondary_mean_levels[2])
+            self.y_primary_level_data.append(1)
+
+            while len(self.x_time_data) > 50:
+                for i in [self.x_time_data,
+                          self.y_action_data,
+                          self.y_face_data,
+                          self.y_head_pose_data,
+                          self.y_primary_level_data]:
+                    i.pop(0)
+
+            self.pushed_frame = True
+
         except Exception as e:
-            print(e)
+            print("add_data_to_list", e)
+
+    def refresh_img_on_window(self):
+        print("timer")
+        if not self.pushed_frame:
+            return
+        print("ok")
+        for y_data, img_widget, color in [
+            (self.y_action_data, self.action_level_img, (1, 0, 0, 1)),
+            (self.y_face_data, self.face_level_img, (0, 1, 0, 1)),
+            (self.y_head_pose_data, self.head_pose_level_img, (0, 0, 1, 1)),
+            (self.y_primary_level_data, self.primary_level_img, (0.4, 0.3, 0.3, 1))
+        ]:
+            self.draw_img_on_windows(y_data, img_widget, color)
+
+        self.pushed_frame = False
+
+    @staticmethod
+    def draw_img_on_window2(frame, img_widget):
+        frame = cv2.resize(frame,
+                           (img_widget.width() - 9, img_widget.height() - 9))  # 调整图像大小
+        image_height, image_width, image_depth = frame.shape
+        frame = QImage(frame, image_width, image_height,  # 创建QImage格式的图像，并读入图像信息
+                       image_width * image_depth,
+                       QImage.Format_RGBA8888)
+        img_widget.setPixmap(QPixmap.fromImage(frame))
+
+    def draw_img_on_windows(self, y_data, img_widget, color, xlabel='时间', ylabel='专注度'):
+        try:
+            # data from United Nations World Population Prospects (Revision 2019)
+            # https://population.un.org/wpp/, license: CC BY 3.0 IGO
+
+            # 绘图
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            ax.plot(self.x_time_data, y_data, color=color, lw=2)
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+            ax.set_ylim([0, 5])
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
+            for tick in ax.get_xticklabels():
+                tick.set_rotation(30)
+                tick.set_fontsize(12)
+            for tick in ax.get_yticklabels():
+                tick.set_fontsize(15)
+
+            # matplotlib 转ndarray图像
+            fig.canvas.draw()
+            frame = np.array(fig.canvas.renderer.buffer_rgba())
+            plt.close(fig)
+            self.draw_img_on_window_signal.emit(frame, img_widget)
+        except Exception as e:
+            print('draw_img_on_windows', e)
 
     def play_video(self):
         if self.playing is not None:
@@ -276,7 +298,7 @@ class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
             # 更新界面
             data = self.frame_data_list[current_frame]
             maxData = self.frame_data_list[max_frame]
-            frame = data.frame_anno if self.show_box_ckb.isChecked() else data.frame
+            frame = data.get_draw_frame(show_box=self.show_box_ckb.isChecked())
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = cv2.resize(frame, (self.video_screen.width() - 9, self.video_screen.height() - 9))  # 调整图像大小
             image_height, image_width, image_depth = frame.shape
@@ -290,68 +312,12 @@ class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
 
             self.time_process_label.setText(f"{current_time_process}/{max_time_process}")
         except Exception as e:
-            print(e)
+            print('change_frame', e)
 
     def close(self):
+        self.draw_img_timer.stop()
         self.close_source()
+        super(ClassConcentrationApp, self).close()
 
     def open(self):
-        pass
-
-    def draw_cheating_list_line(self, data):
-        try:
-            # data from United Nations World Population Prospects (Revision 2019)
-            # https://population.un.org/wpp/, license: CC BY 3.0 IGO
-            # 更新数据
-            time_process = second2str(data.time_process)
-            max_idx = len(self.cheating_list_time) - 1
-            if max_idx >= 0 and time_process == self.cheating_list_time[max_idx]:
-                return
-            self.cheating_list_time.append(time_process)
-            num_of_passing = data.num_of_passing
-            num_of_peep = data.num_of_peep
-            num_of_gazing_around = data.num_of_gazing_around
-
-            passing_list = self.cheating_list_count_data['传纸条']
-            peep_list = self.cheating_list_count_data['低头偷看']
-            gazing_around_list = self.cheating_list_count_data['东张西望']
-            passing_list.append(num_of_passing)
-            peep_list.append(num_of_peep)
-            gazing_around_list.append(num_of_gazing_around)
-            if len(passing_list) > 50:
-                passing_list.pop(0)
-                peep_list.pop(0)
-                gazing_around_list.pop(0)
-                self.cheating_list_time.pop(0)
-
-            # 绘图
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            ax.stackplot(self.cheating_list_time, self.cheating_list_count_data.values(),
-                         labels=self.cheating_list_count_data.keys())
-            ax.legend(loc='upper left')
-            ax.set_title('异常行为时间曲线', fontdict=dict(fontsize=18))
-            ax.set_xlabel('时间')
-            ax.set_ylabel('人数')
-            ax.set_ylim([0, data.detections.shape[0]])
-            ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
-            for i, tick in enumerate(ax.get_xticklabels()):
-                tick.set_rotation(30)
-                tick.set_fontsize(12)
-            for tick in ax.get_yticklabels():
-                tick.set_fontsize(15)
-
-            # matplotlib 转ndarray图像
-            fig.canvas.draw()
-            image = np.array(fig.canvas.renderer.buffer_rgba())
-
-            image = cv2.resize(image,
-                               (self.cheating_list_img.width() - 9, self.cheating_list_img.height() - 9))  # 调整图像大小
-            image_height, image_width, image_depth = image.shape
-            frame = QImage(image, image_width, image_height,  # 创建QImage格式的图像，并读入图像信息
-                           image_width * image_depth,
-                           QImage.Format_RGBA8888)
-            self.cheating_list_img.setPixmap(QPixmap.fromImage(frame))
-            plt.close(fig)
-        except Exception as e:
-            print(e)
+        self.draw_img_timer.start(5000)

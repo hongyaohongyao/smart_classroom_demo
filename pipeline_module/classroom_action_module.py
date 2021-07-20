@@ -121,8 +121,17 @@ class ConcentrationEvaluationModule(BaseModule):
             data.pitch_euler = np.array([euler[1] for euler in data.head_pose_euler])
             # 面部遮挡
             face_scores = data.keypoints_scores[:, 26:94].numpy().squeeze(2)
-            face_hidden = np.mean(face_scores[:, 27:48], axis=1) > self.face_hidden_threshold
-            mouth_hidden = np.mean(face_scores[:, 48:68], axis=1) > self.mouth_hidden_threshold
+            face_hidden = np.mean(face_scores[:, 27:48], axis=1) < self.face_hidden_threshold
+            mouth_hidden = np.mean(face_scores[:, 48:68], axis=1) < self.mouth_hidden_threshold
+            # 面部表情分类
+            face_landmarks = data.keypoints[:, 26:94].numpy()
+            face_preds = self.concentration_evaluator.get_expressions(face_landmarks)
+            # 模糊综合分析
+            data.concentration_evaluation = self.concentration_evaluator.evaluate(data.raw_best_preds.numpy(),
+                                                                                  face_preds,
+                                                                                  data.pitch_euler,
+                                                                                  face_hidden | mouth_hidden
+                                                                                  )
 
     def open(self):
         super(ConcentrationEvaluationModule, self).open()

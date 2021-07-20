@@ -3,6 +3,7 @@ import sys
 import qdarkstyle
 
 from smart_classroom.cheating_detection_app import CheatingDetectionApp
+from smart_classroom.class_concentration_app import ClassConcentrationApp
 from smart_classroom.dynamic_attendance_app import DynamicAttendanceApp
 from smart_classroom.face_register_app import FaceRegisterApp
 
@@ -28,6 +29,10 @@ class SmartClassroomApp(QMainWindow, SmartClassroomMainWindow):
         self.cheating_detection_widget = CheatingDetectionApp()
         self.cheating_detection_widget.setObjectName("cheating_detection_widget")
         self.tabWidget.addTab(self.cheating_detection_widget, "作弊检测")
+
+        self.class_concentration_widget = ClassConcentrationApp()
+        self.class_concentration_widget.setObjectName("class_concentration_widget")
+        self.tabWidget.addTab(self.class_concentration_widget, "课堂专注度分析")
 
         self.face_register_widget = FaceRegisterApp()
         self.face_register_widget.setObjectName("face_register_widget")

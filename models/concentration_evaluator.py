@@ -42,18 +42,19 @@ class ConcentrationEvaluator:
     # ])
     action_fuzzy_matrix = np.array([
         [1, 0, 0, 0, 0],  # 正坐
-        [0, 1, 0, 0, 0],  # 抬手
+        [0, 0.1, 0.8, 0.1, 0],  # 抬手
         [0, 0, 0, 1, 0],  # 放松
         [0, 0, 0, 0, 1],  # 休息
-        [0, 0, 1, 0, 0]  # 活动（伸手，转头）
+        [0, 0, 0.3, 0.7, 0]  # 活动（伸手，转头）
     ])
     face_fuzzy_matrix = np.array([
+        [0, 0, 0, 0, 1],  # 遮挡
         [1, 0, 0, 0, 0],  # 积极
         [0.7, 0.3, 0, 0, 0],  # 一般
-        [0.5, 0.3, 0.2, 0, 0],  # 消极
+        [0.2, 0.5, 0, 0.1, 0.2],  # 消极
     ])
     head_pose_fuzzy_matrix = np.array([
-        [0, 0, 0.1, 0.4, 0.5],  # 遮挡
+        [0, 0, 0.1, 0.1, 0.8],  # 遮挡
         [0, 0, 0, 0.2, 0.8],  # 上课低头
         [1.0, 0.0, 0.0, 0.0, 0.0],  # 上课抬头
         [1.0, 0.0, 0.0, 0.0, 0.0],  # 自习低头
@@ -75,15 +76,15 @@ class ConcentrationEvaluator:
     def evaluate(self, action_preds: ndarray,
                  face_preds: ndarray,
                  head_pose_preds: ndarray,
-                 face_hidden: ndarray = None):
+                 face_hidden: ndarray = None) -> ConcentrationEvaluation:
         # 分析二级评价因素
         self.action_preds, self.action_count = self.class_action_reclassify(action_preds)
-        self.face_preds, self.face_count = self.face_action_reclassify(face_preds)
+        self.face_preds, self.face_count = self.face_action_reclassify(face_preds, face_hidden)
         self.head_pose_preds, self.head_pose_count = self.head_pose_reclassify(head_pose_preds, face_hidden)
         # 二级评价等级
-        self.action_levels = self.action_preds @ self.evaluation_level
-        self.face_levels = self.face_preds @ self.evaluation_level
-        self.head_pose_levels = self.head_pose_preds @ self.evaluation_level
+        self.action_levels = self.action_preds @ self.action_fuzzy_matrix @ self.evaluation_level
+        self.face_levels = self.face_preds @ self.face_fuzzy_matrix @ self.evaluation_level
+        self.head_pose_levels = self.head_pose_preds @ self.head_pose_fuzzy_matrix @ self.evaluation_level
 
         self.secondary_levels = np.hstack([
             self.action_levels[..., np.newaxis],
@@ -96,11 +97,9 @@ class ConcentrationEvaluator:
         self.face_info_entropy = self.info_entropy(self.face_count)
         self.head_pose_info_entropy = self.info_entropy(self.head_pose_count)
 
-        self.primary_factor = self.softmax(
-            np.array([self.action_info_entropy,
-                      self.face_info_entropy,
-                      self.head_pose_info_entropy]),
-            axis=1)
+        self.primary_factor = self.softmax(np.array([self.action_info_entropy,
+                                                     self.face_info_entropy,
+                                                     self.head_pose_info_entropy]))
         # 一级评价因素等级
         self.primary_levels = self.secondary_levels @ self.primary_factor
         return ConcentrationEvaluation(self.primary_levels,
@@ -112,35 +111,44 @@ class ConcentrationEvaluator:
         重新分类课堂动作标签
         """
         reclassified_preds = np.empty_like(action_preds)
-        for lbl, new_class in self.reclassified_class_actions:
+        for lbl, new_class in enumerate(self.reclassified_class_actions):
             reclassified_preds[action_preds == lbl] = new_class
-
-        result = np.eye(self.action_fuzzy_matrix.shape[0])[reclassified_preds]
-        count_vec = np.bincount(reclassified_preds)
+        min_len = self.action_fuzzy_matrix.shape[0]
+        result = np.eye(min_len)[reclassified_preds]
+        count_vec = np.bincount(reclassified_preds, minlength=min_len)
         return result, count_vec
 
-    def face_action_reclassify(self, face_preds):
+    def face_action_reclassify(self, face_preds, face_hidden=None):
         """
         重新分类面部疲劳标签
+        0  "nature" 1   "happy" 2   "confused" 3 "amazing"
         """
-        result = np.array([self.get_expression(marks) for marks in face_preds])
-        count_vec = np.bincount(result)
-        return result, count_vec
+        result = np.empty_like(face_preds)
+        result[(face_preds == 1) | (face_preds == 3)] = 1
+        result[face_preds == 0] = 2
+        result[face_preds == 2] = 3
+
+        if face_hidden is not None:
+            result[face_hidden] = 0
+        min_len = self.face_fuzzy_matrix.shape[0]
+        count_vec = np.bincount(result, minlength=min_len)
+        return np.eye(min_len)[result], count_vec
 
     def head_pose_reclassify(self, head_pose_preds, face_hidden=None):
         """
         离散化分类头部角度
         """
-        discretization_head_pose = np.empty_like(head_pose_preds)
+        discretization_head_pose = np.empty_like(head_pose_preds, dtype=np.int64)
         for d1, d2, lbl in self.head_pose_section:
-            discretization_head_pose[d1 < head_pose_preds <= d2] = lbl
+            discretization_head_pose[(d1 < head_pose_preds) & (head_pose_preds <= d2)] = lbl
         if face_hidden is not None:
             discretization_head_pose[face_hidden] = 0
 
         # 分解上课和自习状态
         count_ = np.array([np.count_nonzero(discretization_head_pose == 1),
                            np.count_nonzero(discretization_head_pose == 2)])
-        count_ = count_ / np.sum(count_)
+        sum_count_ = np.sum(count_)
+        count_ = np.array([0, 1]) if sum_count_ == 0 else count_ / sum_count_
 
         encode = np.array([
             [1, 0, 0, 0, 0, 0],
@@ -148,9 +156,10 @@ class ConcentrationEvaluator:
             [0, 0, count_[1], 0, count_[0], 0],
             [0, 0, 0, 0, 0, 1]
         ])
-
+        discretization_head_pose = discretization_head_pose.flatten()
         result = encode[discretization_head_pose]
-        count_vec = np.bincount(discretization_head_pose)
+        min_len = self.head_pose_fuzzy_matrix.shape[0]
+        count_vec = np.bincount(discretization_head_pose, minlength=min_len)
 
         return result, count_vec
 
@@ -166,6 +175,9 @@ class ConcentrationEvaluator:
         x = x - x.max(axis=axis, keepdims=True)
         y = np.exp(x)
         return y / y.sum(axis=axis, keepdims=True)
+
+    def get_expressions(self, face_landmarks):
+        return np.array([self.get_expression(marks) for marks in face_landmarks])
 
     @staticmethod
     def get_expression(marks):
@@ -242,9 +254,23 @@ if __name__ == '__main__':
     # b = np.array([5, 4, 3, 2, 1])[..., np.newaxis]
     # c = np.array([1, 1, 1, 1, 1])[..., np.newaxis]
     # print(np.hstack([a, b, c]))
-    print(np.array([
-        [1, 2, 3],
-        [3, 2, 1],
-        [1, 1, 1]
-    ]) @ np.array([0.2, 0.3, 0.5]))
+    # print(np.array([
+    #     [0, 0, 0, 0, 0, 1],
+    #     [0, 0, 0, 0, 1, 0]
+    # ]) @ np.array([
+    #     [0, 0, 0.1, 0.4, 0.5],  # 遮挡
+    #     [0, 0, 0, 0.2, 0.8],  # 上课低头
+    #     [1.0, 0.0, 0.0, 0.0, 0.0],  # 上课抬头
+    #     [1.0, 0.0, 0.0, 0.0, 0.0],  # 自习低头
+    #     [0, 0, 0.1, 0.5, 0.4],  # 自习抬头
+    #     [0, 0, 0, 0.2, 0.8]  # 仰头
+    # ]) @ np.array([5, 4, 3, 2, 1]))
+    print(np.mean(np.array(
+        [
+            [1, 1, 1],
+            [2, 2, 2, ],
+            [3, 3, 3],
+
+        ]
+    ), axis=0))
     pass
