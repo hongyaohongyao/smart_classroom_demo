@@ -1,7 +1,9 @@
+import numpy as np
 import torch
 
 from models.action_analysis import CheatingActionAnalysis
 from models.classroom_action_classifier import ClassroomActionClassifier
+from models.concentration_evaluator import ConcentrationEvaluator
 from models.pose_estimator import PnPPoseEstimator
 from pipeline_module.core.base_module import TASK_DATA_OK, BaseModule
 
@@ -94,3 +96,41 @@ class CheatingActionModule(BaseModule):
     def open(self):
         super(CheatingActionModule, self).open()
         pass
+
+
+class ConcentrationEvaluationModule(BaseModule):
+    use_keypoints = [x for x in range(11)] + [17, 18, 19]
+    face_hidden_threshold = 0.02
+    mouth_hidden_threshold = 0.02
+
+    def __init__(self, weights, device='cpu', img_size=(480, 640), skippable=True):
+        super(ConcentrationEvaluationModule, self).__init__(skippable=skippable)
+        self.classifier = ClassroomActionClassifier(weights, device)  # 行为识别
+        self.pnp = PnPPoseEstimator(img_size=img_size)  # 头部姿态估计
+        self.concentration_evaluator = ConcentrationEvaluator()  # 模糊综合分析
+
+    def process_data(self, data):
+        if data.detections.shape[0] > 0:
+            # 行为识别
+            data.classes_probs = self.classifier.classify(data.keypoints[:, self.use_keypoints])
+            data.raw_best_preds = torch.argmax(data.classes_probs, dim=1)  # 最佳行为分类
+            # 头背部姿态估计
+            data.head_pose = np.array([self.pnp.solve_pose(kp) for kp in data.keypoints[:, 26:94, :2].numpy()])
+            data.draw_axis = self.pnp.draw_axis
+            data.head_pose_euler = np.array([self.pnp.get_euler(*vec) for vec in data.head_pose])
+            data.pitch_euler = np.array([euler[1] for euler in data.head_pose_euler])
+            # 面部遮挡
+            face_scores = data.keypoints_scores[:, 26:94].numpy().squeeze(2)
+            face_hidden = np.mean(face_scores[:, 27:48], axis=1) > self.face_hidden_threshold
+            mouth_hidden = np.mean(face_scores[:, 48:68], axis=1) > self.mouth_hidden_threshold
+
+    def open(self):
+        super(ConcentrationEvaluationModule, self).open()
+
+
+if __name__ == '__main__':
+    print(np.bincount(np.array([1, 1, 1, 2, 2, 2, 3, 3, 3]) > 2))
+    print(np.mean(np.array([
+        [[1], [2], [3]],
+        [[2], [2], [4]]
+    ]).squeeze(2), axis=1) > 2)

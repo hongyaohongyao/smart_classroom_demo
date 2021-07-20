@@ -2,12 +2,16 @@ import cv2
 import numpy as np
 import torch
 
+from models.face_aligner import PFLDFaceAligner, MobileNetSEFaceAligner
 from utils.alphapose.transforms import heatmap_to_coord_simple_regress
+from utils.img_cropper import CropImage
 from utils.simple_transform import SimpleTransform
 
 
 class AlphaPoseEstimator:
-    def __init__(self, weights, device, input_size=(256, 192), output_size=(64, 48)):
+    empty_tensor = torch.tensor([])
+
+    def __init__(self, weights, device, input_size=(256, 192), output_size=(64, 48), face_aligner_weights=None):
         self._input_size = input_size
         self._output_size = output_size
         self._sigma = 2
@@ -21,6 +25,8 @@ class AlphaPoseEstimator:
         self.heatmap_to_coord = heatmap_to_coord_simple_regress
         # 预热
         _ = self.model(torch.zeros(1, 3, 256, 192).to(device))
+        self.face_aligner = MobileNetSEFaceAligner(face_aligner_weights,
+                                                   device) if face_aligner_weights is not None else None
 
     def preprocess(self, frame, detections):
         inps = []
@@ -34,7 +40,7 @@ class AlphaPoseEstimator:
 
     def estimate(self, frame, detections):
         if detections.shape[0] <= 0:
-            return [], []
+            return self.empty_tensor, self.empty_tensor
         inps, cropped_boxes = self.preprocess(frame, detections)
         # 关键点检测
         hm = self.model(inps).cpu().detach()
@@ -52,7 +58,51 @@ class AlphaPoseEstimator:
             pose_scores.append(torch.from_numpy(pose_score).unsqueeze(0))
         preds_kps = torch.cat(pose_coords)
         preds_scores = torch.cat(pose_scores)
+        if self.face_aligner is not None:
+            face_bboxes = self.get_face_boxes(preds_kps)
+            face_bboxes[:, 2:] = face_bboxes[:, 2:] - face_bboxes[:, :2]
+
+            face_cropped_and_bboxes = [CropImage.crop(frame, bbox, 1.1, 56, 56, return_box=True) for bbox in
+                                       face_bboxes]
+            face_bboxes = torch.tensor([bbox for _, bbox in face_cropped_and_bboxes], dtype=torch.float32)
+            face_bboxes[:, 2:] = face_bboxes[:, 2:] - face_bboxes[:, :2]
+            face_cropped = np.array(
+                [cropped_img.tolist() for cropped_img, _ in face_cropped_and_bboxes],
+                dtype=np.uint8)[:, :, :, ::-1]
+            face_landmarks = self.face_aligner.align(face_cropped)
+            face_landmarks *= face_bboxes[:, 2:].unsqueeze(1)
+            face_landmarks += face_bboxes[:, :2].unsqueeze(1)
+            preds_kps[:, 26:94] = face_landmarks[:, :]
+            pass
         return preds_kps, preds_scores
+
+    @staticmethod
+    def get_face_boxes(keypoints):
+        face_keypoints = keypoints[:, 26:94]
+        face_outline_keypoints = face_keypoints[:, :27]
+        x_min = torch.min(face_outline_keypoints[:, :, 0], dim=1).values
+        y_min = torch.min(face_outline_keypoints[:, :, 1], dim=1).values
+        x_max = torch.max(face_outline_keypoints[:, :, 0], dim=1).values
+        y_max = torch.max(face_outline_keypoints[:, :, 1], dim=1).values
+        return torch.stack([x_min, y_min, x_max, y_max], dim=1)
+
+    @staticmethod
+    def get_face_keypoints(face_keypoints):
+        """
+        获取标准化后的人脸关键点坐标
+        :param face_keypoints: 脸部关键点
+        :return: 标准化后的人脸关键点坐标，人脸框的位置
+        """
+        face_outline_keypoints = face_keypoints[:27]
+        face_x1 = torch.min(face_outline_keypoints[:, 0])
+        face_y1 = torch.min(face_outline_keypoints[:, 1])
+        face_x2 = torch.max(face_outline_keypoints[:, 0])
+        face_y2 = torch.max(face_outline_keypoints[:, 1])
+        # 获取标准化的脸部坐标
+        face_x1_y1 = torch.tensor([face_x1, face_y1])
+        face_width = torch.tensor([face_x2 - face_x1, face_y2 - face_y1])
+        scaled_face_keypoints = (face_keypoints - face_x1_y1) / face_width
+        return scaled_face_keypoints, (face_x1, face_y1, face_x2, face_y2)
 
 
 class PnPPoseEstimator:

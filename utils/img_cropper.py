@@ -4,7 +4,7 @@ from cv2 import cv2
 
 class CropImage:
     @staticmethod
-    def _get_new_box(src_w, src_h, bbox, scale, out_w, out_h):
+    def get_new_box(src_w, src_h, bbox, scale, out_w, out_h):
         x = bbox[0]
         y = bbox[1]
         box_w = bbox[2]
@@ -48,16 +48,17 @@ class CropImage:
                int(right_bottom_x), int(right_bottom_y)
 
     @staticmethod
-    def crop(org_img, bbox, scale, out_w, out_h, crop=True):
+    def crop(org_img, bbox, scale, out_w, out_h, crop=True, return_box=False):
 
         if not crop:
             dst_img = cv2.resize(org_img, (out_w, out_h))
+            left_top_x, left_top_y, right_bottom_x, right_bottom_y = bbox
         else:
             src_h, src_w, _ = np.shape(org_img)
             left_top_x, left_top_y, \
-            right_bottom_x, right_bottom_y = CropImage._get_new_box(src_w, src_h, bbox, scale, out_w, out_h)
+            right_bottom_x, right_bottom_y = CropImage.get_new_box(src_w, src_h, bbox, scale, out_w, out_h)
 
             img = org_img[left_top_y: right_bottom_y + 1,
                   left_top_x: right_bottom_x + 1]
             dst_img = cv2.resize(img, (out_w, out_h))
-        return dst_img
+        return (dst_img, [left_top_x, left_top_y, right_bottom_x, right_bottom_y]) if return_box else dst_img

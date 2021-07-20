@@ -3,6 +3,7 @@ import time
 import cv2
 import torch
 
+from models.fatigue_monitor import SleepDetector
 from models.pose_estimator import AlphaPoseEstimator
 from models.yolo_detector import YoloV5Detector
 from utils.vis import draw_keypoints136
@@ -17,7 +18,9 @@ torch.jit.optimized_execution(False)
 
 if __name__ == '__main__':
     detector = YoloV5Detector(weights=yolov5_weight, device='cuda')
-    pose = AlphaPoseEstimator(weights=alphapose_weight, device='cuda')
+    pose = AlphaPoseEstimator(weights=alphapose_weight, device='cuda',
+                              face_aligner_weights='weights/mobilenet56_se_external_model_best.torchscript.pth')
+
     cap = cv2.VideoCapture(0)
     if cap.isOpened():
         ret, frame = cap.read()
@@ -34,8 +37,14 @@ if __name__ == '__main__':
                         cv2.FONT_HERSHEY_COMPLEX,
                         float((det[2] - det[0]) / 200),
                         box_color)
-        if preds_kps is not None:
+        if preds_kps.shape[0] > 0:
             draw_keypoints136(frame, preds_kps, preds_scores)
+            if SleepDetector.detector_v2(preds_kps[:, 26:94].numpy())[0] == 1:
+                print('======================================')
+        # if preds_scores.shape[0] > 0:
+        #     face_preds_score = preds_scores[0, 26:94]
+        #     print(torch.mean(face_preds_score[27:48]),
+        #           torch.mean(face_preds_score[48:68]))
 
         current_time = time.time()
         fps = 1 / (current_time - last_time)
