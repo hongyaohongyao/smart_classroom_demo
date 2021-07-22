@@ -214,13 +214,14 @@ class FaceRegisterApp(QWidget, Ui_FaceRegister):
                     # 绘制头部姿态
                     pnp.draw_axis(frame, r_vec, t_vec)
                     euler = pnp.get_euler(r_vec, t_vec)
+                    tolerance = 15
                     if self.is_register_ckb.isChecked():
-                        if abs(320 - (x1 + x2) // 2) > 10 or abs(200 - (y1 + y2) // 2) > 10 or abs(
-                                175 - (x2 - x1)) > 10 or abs(230 - (y2 - y1)) > 10:
-                            tips_text = '请位于人形框内'
-                            self.decrease_process()
-                        elif silent_face_detections[0][0] != 1:
+                        if silent_face_detections[0][0] != 1:
                             tips_text = '假脸无法进行注册'
+                            self.decrease_process()
+                        elif abs(320 - (x1 + x2) // 2) > tolerance or abs(200 - (y1 + y2) // 2) > tolerance or abs(
+                                175 - (x2 - x1)) > tolerance or abs(230 - (y2 - y1)) > tolerance:
+                            tips_text = '请位于人形框内'
                             self.decrease_process()
                         elif abs(euler[0][0]) > 10 or abs(euler[1][0]) > 10 or abs(euler[2][0]) > 10:
                             tips_text = "请正视摄像头"
@@ -246,7 +247,7 @@ class FaceRegisterApp(QWidget, Ui_FaceRegister):
                         result_text = "假脸 置信度: {:.2f}".format(prob)
                         color = (0, 0, 255)
                     fontText = ImageFont.truetype("resource/font/NotoSansCJKkr-Black.otf",
-                                                  int((x2 - x1) * 0.1),
+                                                  int((x2 - x1) * 0.2),
                                                   encoding="utf-8")
                     # 把人脸框出来标号
                     draw.rectangle([(x1, y1), (x2, y2)], outline=color, width=2)

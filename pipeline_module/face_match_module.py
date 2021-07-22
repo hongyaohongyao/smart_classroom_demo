@@ -21,10 +21,6 @@ class FaceMatchModule(BaseModule):
 
         raw_face_labels = np.argmin(face_distances, axis=1)
         # 处理标签相同的结果
-
-        # 处理冲突和距离过大
-        # raw_face_label = [-1 if face_distances[i, lbl] > 0.25 else lbl for i, lbl in enumerate(raw_face_label)]
-
         vis = np.empty(face_distances.shape[1], dtype=np.int)
         vis.fill(-1)
         face_labels = np.empty(face_distances.shape[0], dtype=np.int)

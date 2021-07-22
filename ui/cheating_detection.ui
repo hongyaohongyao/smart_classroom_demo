@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1215</width>
-    <height>864</height>
+    <width>1252</width>
+    <height>735</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -146,6 +146,9 @@
            </item>
            <item>
             <widget class="QCheckBox" name="show_area_ckb">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
              <property name="text">
               <string>显示考试区域</string>
              </property>

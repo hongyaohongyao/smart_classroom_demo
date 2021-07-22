@@ -27,7 +27,7 @@ class CropImage:
         left_top_y = center_y - new_height / 2
         right_bottom_x = center_x + new_width / 2
         right_bottom_y = center_y + new_height / 2
-
+        # 调整边框位置
         if left_top_x < 0:
             right_bottom_x -= left_top_x
             left_top_x = 0

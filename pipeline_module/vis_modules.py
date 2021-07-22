@@ -15,9 +15,10 @@ from utils.vis import draw_keypoints136
 
 box_color = (0, 255, 0)
 cheating_box_color = (0, 0, 255)
+draw_keypoints_default = False
 
 
-def draw_frame(data, draw_keypoints=False, fps=-1):
+def draw_frame(data, draw_keypoints=draw_keypoints_default, fps=-1):
     frame = data.frame.copy()
     pred = data.detections
     preds_kps = data.keypoints
@@ -237,7 +238,7 @@ class ClassConcentrationVisModule(DataDealerModule):
 
     def draw_frame(self, data, fps):
         def opt_draw_frame(show_box=True, self_weights=None,
-                           draw_keypoints=False, show_fps=True,
+                           draw_keypoints=draw_keypoints_default, show_fps=True,
                            data=data,
                            self=self):
             frame = data.frame.copy()

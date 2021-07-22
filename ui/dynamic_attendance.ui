@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1111</width>
-    <height>771</height>
+    <width>1058</width>
+    <height>703</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -62,7 +62,7 @@
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="7,0,4">
      <item>
-      <layout class="QVBoxLayout" name="verticalLayout_6">
+      <layout class="QVBoxLayout" name="verticalLayout_6" stretch="7,3">
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="3,7">
          <item>
@@ -398,7 +398,7 @@ QSlider::handle:horizontal {
               <double>1.000000000000000</double>
              </property>
              <property name="value">
-              <double>70.000000000000000</double>
+              <double>65.000000000000000</double>
              </property>
             </widget>
            </item>

@@ -39,6 +39,7 @@ device = 'cuda'
 class ClassConcentrationApp(QWidget, Ui_ClassConcentration):
     push_frame_signal = QtCore.pyqtSignal(DictData)
     draw_img_on_window_signal = QtCore.pyqtSignal(np.ndarray, QWidget)
+    plot_base_h = 4.8
 
     def __init__(self, parent=None):
         super(ClassConcentrationApp, self).__init__(parent)
@@ -75,6 +76,7 @@ class ClassConcentrationApp(QWidget, Ui_ClassConcentration):
         self.y_face_data = []
         self.y_head_pose_data = []
         self.y_primary_level_data = []
+        self.primary_factor = None
         self.draw_img_timer = QTimer(self)
         self.draw_img_timer.timeout.connect(self.refresh_img_on_window)
 
@@ -215,15 +217,16 @@ class ClassConcentrationApp(QWidget, Ui_ClassConcentration):
             self.y_action_data.append(secondary_mean_levels[0])
             self.y_face_data.append(secondary_mean_levels[1])
             self.y_head_pose_data.append(secondary_mean_levels[2])
-            self.y_primary_level_data.append(1)
+            self.y_primary_level_data.append(np.mean(concentration_evaluation.primary_levels))
 
-            while len(self.x_time_data) > 50:
+            while len(self.x_time_data) > self.line_data_limit_spin.value():
                 for i in [self.x_time_data,
                           self.y_action_data,
                           self.y_face_data,
                           self.y_head_pose_data,
                           self.y_primary_level_data]:
                     i.pop(0)
+            self.primary_factor = concentration_evaluation.primary_factor
 
             self.pushed_frame = True
 
@@ -241,7 +244,9 @@ class ClassConcentrationApp(QWidget, Ui_ClassConcentration):
             (self.y_head_pose_data, self.head_pose_level_img, (0, 0, 1, 1)),
             (self.y_primary_level_data, self.primary_level_img, (0.4, 0.3, 0.3, 1))
         ]:
-            self.draw_img_on_windows(y_data, img_widget, color)
+            self.draw_line_img_on_windows(y_data, img_widget, color)
+
+        self.draw_radar_img_on_window(self.primary_factor, self.primary_factor_img)
 
         self.pushed_frame = False
 
@@ -255,24 +260,45 @@ class ClassConcentrationApp(QWidget, Ui_ClassConcentration):
                        QImage.Format_RGBA8888)
         img_widget.setPixmap(QPixmap.fromImage(frame))
 
-    def draw_img_on_windows(self, y_data, img_widget, color, xlabel='时间', ylabel='专注度'):
+    def draw_radar_img_on_window(self, y_data, img_widget):
         try:
             # data from United Nations World Population Prospects (Revision 2019)
             # https://population.un.org/wpp/, license: CC BY 3.0 IGO
-
+            aspect = img_widget.width() / img_widget.height()
             # 绘图
-            fig = plt.figure()
+            fig = plt.figure(figsize=(self.plot_base_h * aspect, self.plot_base_h))
+            ax = fig.add_subplot(111, projection='polar')
+            theta = np.arange(0, 2 * np.pi, 2 * np.pi / len(y_data))
+            theta = np.concatenate((theta, [theta[0]]))
+            y_data = np.concatenate((y_data, [y_data[0]]))
+            ax.plot(theta, y_data, 'o--')
+            ax.fill(theta, y_data, alpha=0.2, color='r')
+            # 设置网格标签
+            ax.tick_params(labelsize=23)
+            ax.set_thetagrids(theta * 180 / np.pi, ["行为", '情绪', '抬头'])  # 设置网格标签
+            # matplotlib 转ndarray图像
+            fig.canvas.draw()
+            frame = np.array(fig.canvas.renderer.buffer_rgba())
+            plt.close(fig)
+            self.draw_img_on_window_signal.emit(frame, img_widget)
+        except Exception as e:
+            print('draw_line_img_on_windows', e)
+
+    def draw_line_img_on_windows(self, y_data, img_widget, color, xlabel='时间', ylabel='专注度'):
+        try:
+            # data from United Nations World Population Prospects (Revision 2019)
+            # https://population.un.org/wpp/, license: CC BY 3.0 IGO
+            aspect = img_widget.width() / img_widget.height()
+            # 绘图
+            fig = plt.figure(figsize=(self.plot_base_h * aspect, self.plot_base_h))
             ax = fig.add_subplot(111)
             ax.plot(self.x_time_data, y_data, color=color, lw=2)
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel(ylabel)
+            # ax.set_xlabel(xlabel, fontdict=dict(fontsize=23))
+            ax.set_ylabel(ylabel, fontdict=dict(fontsize=23))
             ax.set_ylim([0, 5])
-            ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
-            for tick in ax.get_xticklabels():
-                tick.set_rotation(30)
-                tick.set_fontsize(12)
-            for tick in ax.get_yticklabels():
-                tick.set_fontsize(15)
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(max(2, int(self.line_data_limit_spin.value() / 5 - 1))))
+            ax.tick_params(labelsize=23)
+            ax.tick_params(axis='x', labelrotation=10)
 
             # matplotlib 转ndarray图像
             fig.canvas.draw()
@@ -280,7 +306,7 @@ class ClassConcentrationApp(QWidget, Ui_ClassConcentration):
             plt.close(fig)
             self.draw_img_on_window_signal.emit(frame, img_widget)
         except Exception as e:
-            print('draw_img_on_windows', e)
+            print('draw_line_img_on_windows', e)
 
     def play_video(self):
         if self.playing is not None:

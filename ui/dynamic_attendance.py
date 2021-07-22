@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_DynamicAttendance(object):
     def setupUi(self, DynamicAttendance):
         DynamicAttendance.setObjectName("DynamicAttendance")
-        DynamicAttendance.resize(1111, 771)
+        DynamicAttendance.resize(1058, 703)
         self.verticalLayout_8 = QtWidgets.QVBoxLayout(DynamicAttendance)
         self.verticalLayout_8.setObjectName("verticalLayout_8")
         self.horizontalLayout_8 = QtWidgets.QHBoxLayout()
@@ -195,6 +195,8 @@ class Ui_DynamicAttendance(object):
         self.student_list.setObjectName("student_list")
         self.verticalLayout_5.addWidget(self.student_list)
         self.verticalLayout_6.addLayout(self.verticalLayout_5)
+        self.verticalLayout_6.setStretch(0, 7)
+        self.verticalLayout_6.setStretch(1, 3)
         self.horizontalLayout_5.addLayout(self.verticalLayout_6)
         self.line = QtWidgets.QFrame(DynamicAttendance)
         self.line.setFrameShape(QtWidgets.QFrame.VLine)
@@ -217,7 +219,7 @@ class Ui_DynamicAttendance(object):
         self.face_match_threshold_dspin = QtWidgets.QDoubleSpinBox(DynamicAttendance)
         self.face_match_threshold_dspin.setMaximum(100.0)
         self.face_match_threshold_dspin.setSingleStep(1.0)
-        self.face_match_threshold_dspin.setProperty("value", 70.0)
+        self.face_match_threshold_dspin.setProperty("value", 65.0)
         self.face_match_threshold_dspin.setObjectName("face_match_threshold_dspin")
         self.horizontalLayout.addWidget(self.face_match_threshold_dspin)
         self.verticalLayout.addLayout(self.horizontalLayout)

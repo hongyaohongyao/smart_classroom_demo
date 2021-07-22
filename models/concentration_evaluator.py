@@ -43,7 +43,7 @@ class ConcentrationEvaluator:
     action_fuzzy_matrix = np.array([
         [1, 0, 0, 0, 0],  # 正坐
         [0, 0.1, 0.8, 0.1, 0],  # 抬手
-        [0, 0, 0, 1, 0],  # 放松
+        [0, 0.5, 0.5, 0, 0],  # 放松
         [0, 0, 0, 0, 1],  # 休息
         [0, 0, 0.3, 0.7, 0]  # 活动（伸手，转头）
     ])
@@ -61,11 +61,11 @@ class ConcentrationEvaluator:
         [0, 0, 0.1, 0.5, 0.4],  # 自习抬头
         [0, 0, 0, 0.2, 0.8],  # 仰头
     ])
-    evaluation_level = np.array([5, 4, 3, 2, 1])
+    evaluation_level = np.array([5, 4, 3, 2, 1])  # 评价等级向量
 
-    def __init__(self):
+    def __init__(self, head_pose_split=[-40, 40]):
 
-        self.head_pose_split = [-40, 40]
+        self.head_pose_split = head_pose_split
         self.head_pose_section = [  # d1, d2, lbl
             (-200, self.head_pose_split[0], 1),
             (self.head_pose_split[0], self.head_pose_split[1], 2),
@@ -93,9 +93,9 @@ class ConcentrationEvaluator:
         ])
 
         # 分析一级评级因素
-        self.action_info_entropy = self.info_entropy(self.action_count)
-        self.face_info_entropy = self.info_entropy(self.face_count)
-        self.head_pose_info_entropy = self.info_entropy(self.head_pose_count)
+        self.action_info_entropy = self.info_entropy(self.action_count / np.sum(self.action_count))
+        self.face_info_entropy = self.info_entropy(self.face_count / np.sum(self.face_count))
+        self.head_pose_info_entropy = self.info_entropy(self.head_pose_count / np.sum(self.head_pose_count))
 
         self.primary_factor = self.softmax(np.array([self.action_info_entropy,
                                                      self.face_info_entropy,
@@ -138,6 +138,7 @@ class ConcentrationEvaluator:
         """
         离散化分类头部角度
         """
+        print(head_pose_preds.flatten().tolist())
         discretization_head_pose = np.empty_like(head_pose_preds, dtype=np.int64)
         for d1, d2, lbl in self.head_pose_section:
             discretization_head_pose[(d1 < head_pose_preds) & (head_pose_preds <= d2)] = lbl
@@ -149,6 +150,7 @@ class ConcentrationEvaluator:
                            np.count_nonzero(discretization_head_pose == 2)])
         sum_count_ = np.sum(count_)
         count_ = np.array([0, 1]) if sum_count_ == 0 else count_ / sum_count_
+        # count_ = np.array([0, 1]) if sum_count_ == 0 else np.round(count_ / sum_count_)
 
         encode = np.array([
             [1, 0, 0, 0, 0, 0],

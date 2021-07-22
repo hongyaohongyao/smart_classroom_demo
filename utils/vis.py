@@ -59,7 +59,7 @@ def draw_keypoints136(frame, preds_kps, preds_scores):
     for kp_preds, kp_scores in zip(preds_kps, preds_scores):
         part_line = {}
         # Draw keypoints
-        vis_thres = 0.025
+        vis_thres = 0.001
         # kp_num = kp_scores.shape[0]
         kp_num = 94
         for n in range(kp_num):

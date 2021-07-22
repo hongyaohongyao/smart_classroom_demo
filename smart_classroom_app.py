@@ -63,6 +63,7 @@ class SmartClassroomApp(QMainWindow, SmartClassroomMainWindow):
         self.cheating_detection_widget.close()
         self.face_register_widget.close()
         self.dynamic_attendance_widget.close()
+        self.class_concentration_widget.close()
         super(SmartClassroomApp, self).closeEvent(a0)
 
 

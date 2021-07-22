@@ -7,6 +7,8 @@ from models.concentration_evaluator import ConcentrationEvaluator
 from models.pose_estimator import PnPPoseEstimator
 from pipeline_module.core.base_module import TASK_DATA_OK, BaseModule
 
+peep_threshold = -60  # 第一个视频使用阈值-50
+
 
 class CheatingActionModule(BaseModule):
     raw_class_names = ["seat", "write", "stretch", "hand_up_R", "hand_up_L",
@@ -71,7 +73,7 @@ class CheatingActionModule(BaseModule):
                 if data.best_preds[i] == 0:
                     if is_passing_list[i] != 0:
                         data.best_preds[i] = 1
-                    elif data.head_pose_euler[i][1][0] < -50:
+                    elif data.head_pose_euler[i][1][0] < peep_threshold:
                         data.best_preds[i] = 2
             data.pred_class_names = [self.class_names[i] for i in data.best_preds]
             # 统计人数
@@ -100,8 +102,8 @@ class CheatingActionModule(BaseModule):
 
 class ConcentrationEvaluationModule(BaseModule):
     use_keypoints = [x for x in range(11)] + [17, 18, 19]
-    face_hidden_threshold = 0.02
-    mouth_hidden_threshold = 0.02
+    face_hidden_threshold = 0.005
+    mouth_hidden_threshold = 0
 
     def __init__(self, weights, device='cpu', img_size=(480, 640), skippable=True):
         super(ConcentrationEvaluationModule, self).__init__(skippable=skippable)
@@ -121,8 +123,8 @@ class ConcentrationEvaluationModule(BaseModule):
             data.pitch_euler = np.array([euler[1] for euler in data.head_pose_euler])
             # 面部遮挡
             face_scores = data.keypoints_scores[:, 26:94].numpy().squeeze(2)
-            face_hidden = np.mean(face_scores[:, 27:48], axis=1) < self.face_hidden_threshold
-            mouth_hidden = np.mean(face_scores[:, 48:68], axis=1) < self.mouth_hidden_threshold
+            face_hidden = np.max(face_scores[:, 0:48], axis=1) < self.face_hidden_threshold
+            mouth_hidden = np.max(face_scores[:, 48:68], axis=1) < self.mouth_hidden_threshold
             # 面部表情分类
             face_landmarks = data.keypoints[:, 26:94].numpy()
             face_preds = self.concentration_evaluator.get_expressions(face_landmarks)
