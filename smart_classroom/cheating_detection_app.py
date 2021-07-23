@@ -78,14 +78,17 @@ class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
         self.init_video_source()
 
         # 作弊行为曲线参数
+        self.init_cheating_img_data()
+        # 初始化界面剩余部分
+        self.init_rest_window()
+
+    def init_cheating_img_data(self):
         self.cheating_list_time = []
         self.cheating_list_count_data = dict(
             传纸条=[],
             低头偷看=[],
             东张西望=[]
         )
-        # 初始化界面剩余部分
-        self.init_rest_window()
 
     def init_rest_window(self):
         self.real_time_catch_ico.setPixmap(QPixmap(':/videos/scan.ico'))
@@ -171,6 +174,7 @@ class CheatingDetectionApp(QWidget, Ui_CheatingDetection):
             self.playing_real_time = False
             self.cheating_list.clear()
             self.real_time_catch_list.clear()
+            self.init_cheating_img_data()
 
     def push_frame(self, data):
         try:
