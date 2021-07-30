@@ -1,3 +1,4 @@
 weights/*
 resource/face_bank/*
-resource/videos/*
+resource/videos/**/*.*
+**/__pycache__/*

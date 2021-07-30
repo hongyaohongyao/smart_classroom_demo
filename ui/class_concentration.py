@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_ClassConcentration(object):
     def setupUi(self, ClassConcentration):
         ClassConcentration.setObjectName("ClassConcentration")
-        ClassConcentration.resize(1260, 829)
+        ClassConcentration.resize(1240, 769)
         self.verticalLayout_11 = QtWidgets.QVBoxLayout(ClassConcentration)
         self.verticalLayout_11.setObjectName("verticalLayout_11")
         self.horizontalLayout_8 = QtWidgets.QHBoxLayout()

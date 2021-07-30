@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_CheatingDetection(object):
     def setupUi(self, CheatingDetection):
         CheatingDetection.setObjectName("CheatingDetection")
-        CheatingDetection.resize(1215, 864)
+        CheatingDetection.resize(1252, 735)
         self.verticalLayout_13 = QtWidgets.QVBoxLayout(CheatingDetection)
         self.verticalLayout_13.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_13.setObjectName("verticalLayout_13")
@@ -82,6 +82,7 @@ class Ui_CheatingDetection(object):
         self.show_box_ckb.setObjectName("show_box_ckb")
         self.horizontalLayout_10.addWidget(self.show_box_ckb)
         self.show_area_ckb = QtWidgets.QCheckBox(CheatingDetection)
+        self.show_area_ckb.setEnabled(False)
         self.show_area_ckb.setObjectName("show_area_ckb")
         self.horizontalLayout_10.addWidget(self.show_area_ckb)
         spacerItem1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
