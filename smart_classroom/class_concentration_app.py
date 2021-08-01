@@ -92,6 +92,10 @@ class ClassConcentrationApp(QWidget, Ui_ClassConcentration):
         VideoSourceItem(self.video_resource_list, "摄像头", 0).add_item()
         # 添加本地视频文件
         local_source = 'resource/videos/class_concentration'
+        if not os.path.exists(local_source):
+            os.makedirs(local_source)
+        else:
+            print(f"本地视频目录已创建: {local_source}")
         videos = [*filter(lambda x: x.endswith('.mp4'), os.listdir(local_source))]
         for video_name in videos:
             VideoSourceItem(self.video_resource_file_list,
