@@ -42,10 +42,9 @@ class FaceMatchModule(BaseModule):
                     face_labels[argue_i] = -1
 
         data.face_labels = face_labels
-        data.face_probs = np.array([face_distances[i, lbl] if lbl > 0 else 1 for i, lbl in enumerate(face_labels)])
+        data.face_probs = np.array([face_distances[i, lbl] if lbl >= 0 else 1 for i, lbl in enumerate(face_labels)])
         data.raw_face_labels = np.array(raw_face_labels)
         data.raw_face_probs = np.array([face_distances[i, lbl] for i, lbl in enumerate(face_labels)])
-
         return TASK_DATA_OK
 
     def open(self):
