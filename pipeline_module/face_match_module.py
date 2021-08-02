@@ -19,9 +19,9 @@ class FaceMatchModule(BaseModule):
                                                    face_encoding).tolist() for face_encoding in face_encodings]
         face_distances = np.array(face_distances)
 
-        raw_face_labels = np.argmin(face_distances, axis=1)
+        raw_face_labels = np.argmin(face_distances, axis=1) if face_distances.shape[0] > 0 else np.array([])
         # 处理标签相同的结果
-        vis = np.empty(face_distances.shape[1], dtype=np.int)
+        vis = np.empty(known_encodings.shape[0], dtype=np.int)
         vis.fill(-1)
         face_labels = np.empty(face_distances.shape[0], dtype=np.int)
         face_labels.fill(-1)
