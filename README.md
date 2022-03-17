@@ -15,6 +15,8 @@
 
 ## 使用步骤
 ### 1. 配置环境（欢迎大家在试错并且配置成功后把这篇文档没有覆盖到的bug这些都补充一下下哈！众人拾柴速度快（×）火焰高（√）哈哈哈哈！谢谢大家！）
+==一些积累下来的报错和基本的解决方法可以[按住Ctrl键再点我跳转到对应页面](https://github.com/hongyaohongyao/smart_classroom_demo/issues/17)慢慢食用哦！==
+
 - 安装VisualStudio，注意在Installer中勾选“单个组件”中的“用于Windows的C++ CMake工具”然后再安装，就像下图这样的：
 ![单个组件CMake](.img/README/Installer单个组件CMake.jpg)
 - 安装Anaconda
