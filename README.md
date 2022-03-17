@@ -14,11 +14,32 @@
 - 最好用有gpu的设备运行嗷，没有gpu可能需要自己在项目里改
 
 ## 使用步骤
+### 1. 配置环境（欢迎大家在试错并且配置成功后把这篇文档没有覆盖到的bug这些都补充一下下哈！众人拾柴速度快（×）火焰高（√）哈哈哈哈！谢谢大家！）
 
-### 1.下载 requirements.txt
+**一些积累下来的报错和基本的解决方法可以[按住Ctrl键再点我跳转到对应页面](https://github.com/hongyaohongyao/smart_classroom_demo/issues/17)慢慢食用哦！**
 
-```shell
-pip install -r requirements.txt
+- 安装VisualStudio，注意在Installer中勾选“单个组件”中的“用于Windows的C++ CMake工具”然后再安装，就像下图这样的：
+![单个组件CMake](.img/README/Installer单个组件CMake.jpg)
+- 安装Anaconda
+- 在Anaconda中创建虚拟Python环境，版本是3.7
+- 在虚拟Python环境中安装cmake，运行如下指令：
+```
+pip install cmake
+```
+- 在虚拟Python环境中安装boost，运行如下指令：
+```
+pip install boost
+```
+- 安装项目工程根目录下的requirements.txt文件所指定的包，运行如下指令
+
+（%REQUIREMENTS_PATH% 表示requirements.txt所在的文件夹的路径，比如requirements.txt在电脑中的绝对路径为：E:\Data\requirements.txt，则指令中的%REQUIREMENTS_PATH%就为：E:\Data，**注意斜线是用  \  还是  /  需要根据系统不同进行区分哈**！）：
+```
+pip install -r %REQUIREMENTS_PATH%\requirements.txt
+```
+_如果最终运行smart_classroom_app.py不成功，报错和某些包有关，记得和requirements.txt文件中的模块一个个比对，将同名的包一个个删掉再安装相同的版本。之后再试着运行smart_classroom_app.py文件_
+- 上pytorch官网的[下载页面](https://download.pytorch.org/whl/cu113/torch_stable.html)根据自己的机器配置找对应pytorch的安装指令，比如如下的指令：
+```
+pip3 install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio===0.11.0+cu113 -f 
 ```
 
 ### 2.下载权重文件
